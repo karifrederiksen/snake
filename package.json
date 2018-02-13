@@ -2,13 +2,14 @@
   "name": "snake",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/app.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "parcel"
   },
-  "author": "",
+  "author": "Kári Frederiksen",
   "license": "MIT",
   "devDependencies": {
+    "parcel-bundler": "^1.5.1",
     "typescript": "^2.7.1"
   }
 }

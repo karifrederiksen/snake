@@ -1,16 +1,23 @@
-import { Game, Snake, GameState, init, reinit, update, getScore, moveLeft, moveRight, moveUp, moveDown } from "./core"
+import { Game, GameState, Dir } from "./core"
+import * as Core from "./core"
 
 
 // CONFIG //
 const MS_PER_TICK = 100
+
 const BOARD_WIDTH = 20
 const BOARD_HEIGHT = 20
+
+const SNAKE_INIT_LENGTH = 4
+const SNAKE_INIT_DIR = Dir.Right
+const SNAKE_INIT_X = 1
+const SNAKE_INIT_Y = 1
 ////////////
 
 
 export function start(canvas: HTMLCanvasElement): void {
     const ctx = canvas.getContext("2d")!
-    const game = init(BOARD_WIDTH, BOARD_HEIGHT);
+    const game = init()
     
     window.addEventListener("keydown", ev => handleInput(game, ev.keyCode))
 
@@ -18,13 +25,36 @@ export function start(canvas: HTMLCanvasElement): void {
     updateLoop(ctx, game)
 }
 
+interface GameWrapper {
+    readonly game: Game
+    needsRender: boolean
+}
 
+function init(): GameWrapper {
+    return {
+        game: Core.init({
+            width: BOARD_WIDTH,
+            height: BOARD_HEIGHT,
+            dir: SNAKE_INIT_DIR,
+            snakeLength: SNAKE_INIT_LENGTH,
+            position: [SNAKE_INIT_X, SNAKE_INIT_Y],
+        }),
+        needsRender: true,
+    }
+}
+ 
+function reinit(gameWrapper: GameWrapper): void {
+    Core.reinit(gameWrapper.game)
+    gameWrapper.needsRender = true
+}
 
-function renderLoop(ctx: CanvasRenderingContext2D, game: Game): void {
-    if (game.needsRender) {
+function renderLoop(ctx: CanvasRenderingContext2D, wrapper: GameWrapper): void {
+    const game = wrapper.game
+    const time = performance.now()
+    if (wrapper.needsRender) {
         switch (game.state) {
             case GameState.InProgress:
-                render(ctx, game, performance.now())
+                render(ctx, game, time)
                 break
             case GameState.InProgressAndPaused:
                 renderGamePaused(ctx, game)
@@ -36,11 +66,11 @@ function renderLoop(ctx: CanvasRenderingContext2D, game: Game): void {
                 renderGameWon(ctx, game)
                 break
         }
-        game.needsRender = false
+        wrapper.needsRender = false
     } else {
-        renderNomsOnly(ctx, game, performance.now())
+        renderNomsOnly(ctx, game, time)
     }
-    requestAnimationFrame(() => renderLoop(ctx, game))
+    requestAnimationFrame(() => renderLoop(ctx, wrapper))
 }
 
 function render(ctx: CanvasRenderingContext2D, game: Game, time: number): void {
@@ -106,20 +136,14 @@ function renderGamePaused(ctx: CanvasRenderingContext2D, game: Game): void {
 }
 
 function renderGameLost(ctx: CanvasRenderingContext2D, game: Game): void {
-    console.log("Game over")
-    console.log("Score: " + getScore(game.snake))
-
     ctx.fillStyle = "rgb(255, 0, 0)"
     ctx.font = "40px Roboto"
     ctx.fillText("You died", 200, 200)
     ctx.font = "34px Roboto"
-    ctx.fillText("Score: " + getScore(game.snake), 220, 400)
+    ctx.fillText("Score: " + Core.getScore(game), 220, 400)
 }
 
 function renderGameWon(ctx: CanvasRenderingContext2D, game: Game): void {
-    console.log("Game over")
-    console.log("Score: " + getScore(game.snake))
-
     ctx.fillStyle = "rgb(255, 0, 0)"
     ctx.font = "40px Roboto"
     ctx.fillText("Wtf.", 200, 200)
@@ -127,11 +151,13 @@ function renderGameWon(ctx: CanvasRenderingContext2D, game: Game): void {
     ctx.fillText("You won?", 220, 400)
 }
 
-function updateLoop(ctx: CanvasRenderingContext2D, game: Game): void {
+function updateLoop(ctx: CanvasRenderingContext2D, wrapper: GameWrapper): void {
     setInterval(() => {
+        const game = wrapper.game
         switch (game.state) {
             case GameState.InProgress:
-                update(game)
+                Core.update(game)
+                wrapper.needsRender = true
                 break
             default:
                 break
@@ -139,61 +165,62 @@ function updateLoop(ctx: CanvasRenderingContext2D, game: Game): void {
     }, MS_PER_TICK)
 }
 
-function handleInput(game: Game, keyCode: number): void {
-    switch (game.state) {
+function handleInput(wrapper: GameWrapper, keyCode: number): void {
+
+    switch (wrapper.game.state) {
         case GameState.InProgress:
-            handleGameInput(game, keyCode)
+            handleGameInput(wrapper, keyCode)
             break
         case GameState.InProgressAndPaused:
-            handlePausedInput(game, keyCode)
+            handlePausedInput(wrapper, keyCode)
             break
         case GameState.Lost:
         case GameState.Won:
-            handleGameEndedInput(game, keyCode)
+            handleGameEndedInput(wrapper, keyCode)
             break
     }
 }
 
-
-function handleGameEndedInput(game: Game, keyCode: number): void {
+function handleGameEndedInput(wrapper: GameWrapper, keyCode: number): void {
     switch (keyCode) {
         case 13:
         case 32:
-            reinit(game)
+            reinit(wrapper)
             break
         default:
             break
     }
 }
 
-function handleGameInput(game: Game, keyCode: number): void {
+function handleGameInput(wrapper: GameWrapper, keyCode: number): void {
+    const game = wrapper.game
     switch(keyCode) {
         case 27:
             game.state = GameState.InProgressAndPaused
-            game.needsRender = true
+            wrapper.needsRender = true
             break
         case 65:
         case 37:
-            moveLeft(game)
+            Core.setDirection(game, Dir.Left)
             break
         case 87:
         case 38:
-            moveUp(game)
+            Core.setDirection(game, Dir.Up)
             break
         case 68:
         case 39:
-            moveRight(game)
+            Core.setDirection(game, Dir.Right)
             break
         case 83:
         case 40:
-            moveDown(game)
+            Core.setDirection(game, Dir.Down)
             break
         default:
             break
     }
 }
 
-function handlePausedInput(game: Game, keyCode: number): void {
+function handlePausedInput({ game }: GameWrapper, keyCode: number): void {
     console.log("unpausing", keyCode)
     switch (keyCode) {
         case 18: break

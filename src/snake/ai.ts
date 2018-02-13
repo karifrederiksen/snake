@@ -1,4 +1,4 @@
-import { moveLeft, moveRight, moveUp, moveDown, update } from "./core"
+import { setDirection, update } from "./core"
 
 
 export type AI = {

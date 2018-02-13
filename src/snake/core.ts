@@ -1,18 +1,10 @@
 
-const enum Dir {
+export const enum Dir {
     Left,
     Up,
     Right,
     Down,
 }
-
-// Config //
-const SNAKE_INIT_LENGTH = 4
-const SNAKE_INIT_DIR = Dir.Right
-const SNAKE_INIT_X = 1
-const SNAKE_INIT_Y = 1
-////////////
-
 
 export const enum GameState {
     InProgress,
@@ -22,42 +14,50 @@ export const enum GameState {
 }
 
 export interface Game {
+    readonly initArgs: InitArgs
     readonly width: number,
     readonly height: number,
     readonly boardState: ReadonlyArray<number[]>,
     readonly snake: Snake
-    noms: [number, number]
+    noms: Readonly<[number, number]>,
     state: GameState,
-    needsRender: boolean,
 }
 
 export interface Snake {
     length: number,
     direction: Dir,
     nextDirection: Dir,
-    position: [number, number],
+    position: Readonly<[number, number]>,
 }
 
-export function init(width: number, height: number): Game {
-    const boardState = createArea(width, height)
+export interface InitArgs {
+    readonly width: number
+    readonly height: number
+    readonly dir: Dir
+    readonly position: Readonly<[number, number]>
+    readonly snakeLength: number
+}
+
+export function init(args: InitArgs): Game {
+    const boardState = createArea(args.width, args.height)
     return {
+        initArgs: args,
         state: GameState.InProgress,
-        width,
-        height,
+        width: args.width,
+        height: args.height,
         boardState,
         snake: {
-            direction: SNAKE_INIT_DIR,
-            nextDirection: SNAKE_INIT_DIR,
-            length: SNAKE_INIT_LENGTH,
-            position: [SNAKE_INIT_X, SNAKE_INIT_Y],
+            direction: args.dir,
+            nextDirection: args.dir,
+            length: args.snakeLength,
+            position: args.position,
         },
-        noms: getRandomPosition(boardState, width, height),
-        needsRender: true,
+        noms: getRandomPosition(boardState, args.width, args.height),
     }
 }
 
 export function reinit(game: Game): void {
-    const { snake, boardState, width, height } = game
+    const { snake, boardState, width, height, initArgs } = game
     for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {
             boardState[x][y] = 0
@@ -65,11 +65,10 @@ export function reinit(game: Game): void {
     }
     game.noms = getRandomPosition(boardState, width, height)
     game.state = GameState.InProgress
-    game.needsRender = true
-    snake.direction = SNAKE_INIT_DIR
-    snake.nextDirection = SNAKE_INIT_DIR
-    snake.length = SNAKE_INIT_LENGTH
-    snake.position = [SNAKE_INIT_X, SNAKE_INIT_Y]
+    snake.direction = initArgs.dir
+    snake.nextDirection = initArgs.dir
+    snake.length = initArgs.snakeLength
+    snake.position = initArgs.position
 }
 
 function getRandomPosition(board: ReadonlyArray<number[]>, width: number, height: number): [number, number] {
@@ -94,16 +93,14 @@ function createArea(width: number, height: number): Array<Array<number>> {
 }
 
 export function update(game: Game): void {
-    game.needsRender = true
-    const nextPosition = getNextPosition(game, game.snake.nextDirection);
+    const nextPosition = getNextPosition(game, game.snake.nextDirection)
     if (isCollision(game, nextPosition)) {
-        game.state = GameState.Lost;
-        return;
+        game.state = GameState.Lost
+        return
     }
-    const [x, y] = nextPosition;
-    const { boardState, snake, noms, width, height } = game;
-    snake.position[0] = x;
-    snake.position[1] = y;
+    const [x, y] = nextPosition
+    const { boardState, snake, noms, width, height } = game
+    snake.position = [x, y]
 
     if (x === noms[0] && y === noms[1]) {
         snake.length++
@@ -112,13 +109,13 @@ export function update(game: Game): void {
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
                 if (boardState[x][y] > 0) {
-                    boardState[x][y]--;
+                    boardState[x][y]--
                 }
             }
         }
     }
     snake.direction = snake.nextDirection
-    boardState[x][y] = snake.length;
+    boardState[x][y] = snake.length
 }
 
 function getNextPosition({ boardState, width, height, snake }: Game, direction: Dir): [number, number] {
@@ -143,30 +140,34 @@ function isCollision({ boardState, width, height }: Game, [x, y]: [number, numbe
         || boardState[x][y] > 1
 }
 
-export function moveLeft({ snake }: Game): void {
-    if (snake.direction !== Dir.Right) {
-        snake.nextDirection = Dir.Left
+export function setDirection({ snake }: Game, direction: Dir): void {
+    // Disallow 180 degree turns
+    switch (direction) {
+        case Dir.Left:
+            if (snake.direction !== Dir.Right) {
+                snake.nextDirection = Dir.Left
+            }
+            break
+        case Dir.Right:
+            if (snake.direction !== Dir.Left) {
+                snake.nextDirection = Dir.Right
+            }
+            break
+
+        case Dir.Up:
+            if (snake.direction !== Dir.Down) {
+                snake.nextDirection = Dir.Up
+            }
+            break
+
+        case Dir.Down:
+            if (snake.direction !== Dir.Up) {
+                snake.nextDirection = Dir.Down
+            }
+            break
     }
 }
 
-export function moveRight({ snake }: Game): void {
-    if (snake.direction !== Dir.Left) {
-        snake.nextDirection = Dir.Right
-    }
-}
-
-export function moveUp({ snake }: Game): void {
-    if (snake.direction !== Dir.Down) {
-        snake.nextDirection = Dir.Up
-    }
-}
-
-export function moveDown({ snake }: Game): void {
-    if (snake.direction !== Dir.Up) {
-        snake.nextDirection = Dir.Down
-    }
-}
-
-export function getScore(snake: Snake): number {
-    return snake.length - SNAKE_INIT_LENGTH
+export function getScore({ snake, initArgs }: Game): number {
+    return snake.length - initArgs.snakeLength
 }
