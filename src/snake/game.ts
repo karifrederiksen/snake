@@ -132,23 +132,23 @@ function nomStyle(time: number): string {
 function renderGamePaused(ctx: CanvasRenderingContext2D, game: Game): void {
     ctx.fillStyle = "rgb(240, 20, 20)"
     ctx.font = "40px Roboto"
-    ctx.fillText("Paused", 200, 200)
+    ctx.fillText("Paused", 300, 200)
 }
 
 function renderGameLost(ctx: CanvasRenderingContext2D, game: Game): void {
     ctx.fillStyle = "rgb(255, 0, 0)"
     ctx.font = "40px Roboto"
-    ctx.fillText("You died", 200, 200)
+    ctx.fillText("You died", 300, 200)
     ctx.font = "34px Roboto"
-    ctx.fillText("Score: " + Core.getScore(game), 220, 400)
+    ctx.fillText("Score: " + Core.getScore(game), 320, 400)
 }
 
 function renderGameWon(ctx: CanvasRenderingContext2D, game: Game): void {
     ctx.fillStyle = "rgb(255, 0, 0)"
     ctx.font = "40px Roboto"
-    ctx.fillText("Wtf.", 200, 200)
+    ctx.fillText("Wtf.", 300, 200)
     ctx.font = "34px Roboto"
-    ctx.fillText("You won?", 220, 400)
+    ctx.fillText("You won?", 320, 400)
 }
 
 function updateLoop(ctx: CanvasRenderingContext2D, wrapper: GameWrapper): void {

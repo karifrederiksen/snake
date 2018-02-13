@@ -2,9 +2,9 @@
   "name": "snake",
   "version": "1.0.0",
   "description": "",
-  "main": "src/app.ts",
+  "main": "",
   "scripts": {
-    "test": "parcel"
+    "start": "parcel"
   },
   "author": "Kári Frederiksen",
   "license": "MIT",
