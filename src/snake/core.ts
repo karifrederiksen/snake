@@ -1,3 +1,5 @@
+import { Vec2 } from "./vec2"
+import * as vec2 from "./vec2"
 
 export const enum Dir {
     Left,
@@ -13,74 +15,80 @@ export const enum GameState {
     Won,
 }
 
+export type Grid = ReadonlyArray<number[]>
+
 export interface Game {
     readonly initArgs: InitArgs
-    readonly width: number,
-    readonly height: number,
-    readonly boardState: ReadonlyArray<number[]>,
+    readonly gridSize: Vec2
+    readonly grid: Grid,
     readonly snake: Snake
-    noms: Readonly<[number, number]>,
+    noms: Vec2,
     state: GameState,
 }
 
 export interface Snake {
     length: number,
     direction: Dir,
+    directionQueue: [Dir] | [Dir, Dir]
     nextDirection: Dir,
-    position: Readonly<[number, number]>,
+    nextNextDirection: Dir | undefined,
+    position: Vec2,
 }
 
 export interface InitArgs {
-    readonly width: number
-    readonly height: number
+    readonly gridSize: Vec2
     readonly dir: Dir
-    readonly position: Readonly<[number, number]>
+    readonly position: Vec2
     readonly snakeLength: number
 }
 
 export function init(args: InitArgs): Game {
-    const boardState = createArea(args.width, args.height)
+    const [width, height] = args.gridSize
+    const grid = createGrid(width, height)
     return {
         initArgs: args,
         state: GameState.InProgress,
-        width: args.width,
-        height: args.height,
-        boardState,
+        gridSize: args.gridSize,
+        grid,
         snake: {
             direction: args.dir,
+            directionQueue: [args.dir],
             nextDirection: args.dir,
+            nextNextDirection: undefined,
             length: args.snakeLength,
             position: args.position,
         },
-        noms: getRandomPosition(boardState, args.width, args.height),
+        noms: getRandomPosition(grid, width, height),
     }
 }
 
 export function reinit(game: Game): void {
-    const { snake, boardState, width, height, initArgs } = game
+    const { snake, grid, gridSize, initArgs } = game
+    const [width, height] = gridSize
     for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {
-            boardState[x][y] = 0
+            grid[x][y] = 0
         }
     }
-    game.noms = getRandomPosition(boardState, width, height)
+    game.noms = getRandomPosition(grid, width, height)
     game.state = GameState.InProgress
     snake.direction = initArgs.dir
     snake.nextDirection = initArgs.dir
+    snake.nextNextDirection = undefined
     snake.length = initArgs.snakeLength
     snake.position = initArgs.position
 }
 
-function getRandomPosition(board: ReadonlyArray<number[]>, width: number, height: number): [number, number] {
+function getRandomPosition(grid: Grid, width: number, height: number): Vec2 {
     const x = Math.floor(Math.random() * width)
     const y = Math.floor(Math.random() * height)
-    if (board[x][y] > 0) {
-        return getRandomPosition(board, width, height)
+    if (grid[x][y] > 0) {
+        return getRandomPosition(grid, width, height)
     }
     return [x, y]
 }
 
-function createArea(width: number, height: number): Array<Array<number>> {
+function createGrid(width: number, height: number): Grid {
     const arr = new Array<Array<number>>(width)
     for (let x = 0; x < width; x++) {
         const subArr = new Array<number>(height)
@@ -99,26 +107,32 @@ export function update(game: Game): void {
         return
     }
     const [x, y] = nextPosition
-    const { boardState, snake, noms, width, height } = game
+    const { grid, snake, noms, gridSize } = game
+    const [width, height] = gridSize
     snake.position = [x, y]
 
     if (x === noms[0] && y === noms[1]) {
         snake.length++
-        game.noms = getRandomPosition(boardState, width, height)
+        grid[x][y] = snake.length
+        game.noms = getRandomPosition(grid, width, height)
     } else {
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
-                if (boardState[x][y] > 0) {
-                    boardState[x][y]--
+                if (grid[x][y] > 0) {
+                    grid[x][y]--
                 }
             }
         }
+        grid[x][y] = snake.length
     }
     snake.direction = snake.nextDirection
-    boardState[x][y] = snake.length
+    snake.nextDirection = snake.nextNextDirection !== undefined
+        ? snake.nextNextDirection
+        : snake.nextDirection
+    snake.nextNextDirection = undefined
 }
 
-function getNextPosition({ boardState, width, height, snake }: Game, direction: Dir): [number, number] {
+function getNextPosition({ grid, snake }: Game, direction: Dir): Vec2 {
     const [x, y] = snake.position
     switch (direction) {
         case Dir.Left:
@@ -132,39 +146,37 @@ function getNextPosition({ boardState, width, height, snake }: Game, direction: 
     }
 }
 
-function isCollision({ boardState, width, height }: Game, [x, y]: [number, number]): boolean {
+function isCollision({ grid, gridSize: [width, height] }: Game, [x, y]: Vec2): boolean {
     return x >= width
         || x < 0
         || y >= height
         || y < 0
-        || boardState[x][y] > 1
+        || grid[x][y] > 1
 }
 
 export function setDirection({ snake }: Game, direction: Dir): void {
     // Disallow 180 degree turns
-    switch (direction) {
+    if (snake.direction === snake.nextDirection) {
+        if (isDirectionAllowed(snake.direction, direction)) {
+            snake.nextDirection = direction
+        }
+    } else {
+        if (isDirectionAllowed(snake.nextDirection, direction)) {
+            snake.nextNextDirection = direction
+        }
+    }
+}
+
+function isDirectionAllowed(current: Dir, next: Dir): boolean {
+    switch (current) {
         case Dir.Left:
-            if (snake.direction !== Dir.Right) {
-                snake.nextDirection = Dir.Left
-            }
-            break
+            return next !== Dir.Right
         case Dir.Right:
-            if (snake.direction !== Dir.Left) {
-                snake.nextDirection = Dir.Right
-            }
-            break
-
+            return next !== Dir.Left
         case Dir.Up:
-            if (snake.direction !== Dir.Down) {
-                snake.nextDirection = Dir.Up
-            }
-            break
-
+            return next !== Dir.Down
         case Dir.Down:
-            if (snake.direction !== Dir.Up) {
-                snake.nextDirection = Dir.Down
-            }
-            break
+            return next !== Dir.Up
     }
 }
 

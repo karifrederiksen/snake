@@ -3,9 +3,26 @@
 <head>
     <meta charset="utf-8">
     <title>Snake</title>
+    <style>
+        body {
+            background-color: #888;
+        }
+        p {
+            color: #eee;
+        }
+
+        .tips {
+            margin-left: 16px;
+        }
+    </style>
 </head>
-<body style="background-color: #888">
+<body>
     <canvas width="800" height="800" id="game-container"></canvas>
+    <div class="tips">
+        <p>Move: WASD, Arrow-keys</p>
+        <p>Pause: Esc, Space, Enter</p>
+        <p>Restart after dying: Esc, Space, Enter</p>
+    </div>
     <script src="src/app.ts"></script>
 </body>
 </html>
