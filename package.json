@@ -4,12 +4,13 @@
   "description": "",
   "main": "",
   "scripts": {
-    "start": "parcel"
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
   },
   "author": "Kári Frederiksen",
   "license": "MIT",
   "devDependencies": {
-    "parcel-bundler": "^1.5.1",
-    "typescript": "^2.7.1"
+    "parcel-bundler": "^1.12.5",
+    "typescript": "^4.3.5"
   }
 }

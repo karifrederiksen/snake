@@ -1,5 +1,4 @@
-
-export type Vec2 = Readonly<[number, number]>
+export type Vec2 = readonly [number, number]
 
 export function of(n: number): Vec2
 export function of(x: number, y: number): Vec2

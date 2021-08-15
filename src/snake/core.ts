@@ -1,5 +1,4 @@
 import { Vec2 } from "./vec2"
-import * as vec2 from "./vec2"
 
 export const enum Dir {
     Left,
@@ -15,24 +14,23 @@ export const enum GameState {
     Won,
 }
 
-export type Grid = ReadonlyArray<number[]>
+export type Grid = readonly number[][]
 
 export interface Game {
     readonly initArgs: InitArgs
     readonly gridSize: Vec2
-    readonly grid: Grid,
+    readonly grid: Grid
     readonly snake: Snake
-    noms: Vec2,
-    state: GameState,
+    noms: Vec2
+    state: GameState
 }
 
 export interface Snake {
-    length: number,
-    direction: Dir,
-    directionQueue: [Dir] | [Dir, Dir]
-    nextDirection: Dir,
-    nextNextDirection: Dir | undefined,
-    position: Vec2,
+    length: number
+    direction: Dir
+    nextDirection: Dir
+    nextNextDirection: Dir | null
+    position: Vec2
 }
 
 export interface InitArgs {
@@ -52,9 +50,8 @@ export function init(args: InitArgs): Game {
         grid,
         snake: {
             direction: args.dir,
-            directionQueue: [args.dir],
             nextDirection: args.dir,
-            nextNextDirection: undefined,
+            nextNextDirection: null,
             length: args.snakeLength,
             position: args.position,
         },
@@ -74,7 +71,7 @@ export function reinit(game: Game): void {
     game.state = GameState.InProgress
     snake.direction = initArgs.dir
     snake.nextDirection = initArgs.dir
-    snake.nextNextDirection = undefined
+    snake.nextNextDirection = null
     snake.length = initArgs.snakeLength
     snake.position = initArgs.position
 }
@@ -89,7 +86,7 @@ function getRandomPosition(grid: Grid, width: number, height: number): Vec2 {
 }
 
 function createGrid(width: number, height: number): Grid {
-    const arr = new Array<Array<number>>(width)
+    const arr = new Array<number[]>(width)
     for (let x = 0; x < width; x++) {
         const subArr = new Array<number>(height)
         for (let y = 0; y < height; y++) {
@@ -126,10 +123,11 @@ export function update(game: Game): void {
         grid[x][y] = snake.length
     }
     snake.direction = snake.nextDirection
-    snake.nextDirection = snake.nextNextDirection !== undefined
-        ? snake.nextNextDirection
-        : snake.nextDirection
-    snake.nextNextDirection = undefined
+    snake.nextDirection =
+        snake.nextNextDirection !== null
+            ? snake.nextNextDirection
+            : snake.nextDirection
+    snake.nextNextDirection = null
 }
 
 function getNextPosition({ grid, snake }: Game, direction: Dir): Vec2 {
@@ -146,12 +144,11 @@ function getNextPosition({ grid, snake }: Game, direction: Dir): Vec2 {
     }
 }
 
-function isCollision({ grid, gridSize: [width, height] }: Game, [x, y]: Vec2): boolean {
-    return x >= width
-        || x < 0
-        || y >= height
-        || y < 0
-        || grid[x][y] > 1
+function isCollision(
+    { grid, gridSize: [width, height] }: Game,
+    [x, y]: Vec2,
+): boolean {
+    return x >= width || x < 0 || y >= height || y < 0 || grid[x][y] > 1
 }
 
 export function setDirection({ snake }: Game, direction: Dir): void {

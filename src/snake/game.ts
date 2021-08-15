@@ -1,8 +1,6 @@
 import { Game, GameState, Dir } from "./core"
-import { Vec2 } from "./vec2"
 import * as Core from "./core"
-import * as vec2 from "./vec2"
-
+import { GridRenderingContext, Color } from "./rendering"
 
 // CONFIG //
 const MS_PER_TICK = 100
@@ -16,24 +14,47 @@ const SNAKE_INIT_X = 1
 const SNAKE_INIT_Y = 1
 ////////////
 
+export interface GameWrapper {
+    game: Game
+    needsRender: boolean
+    statusContainer: HtmlTextRef
+    scoreContainer: HtmlTextRef
+}
+
+export class HtmlTextRef {
+    private _content: string
+    private _color: string
+
+    constructor(readonly elem: HTMLElement) {
+        this._content = elem.textContent ?? ""
+        this._color = elem.style.color
+    }
+
+    content(value: string): void {
+        if (this._content !== value) {
+            this._content = value
+            this.elem.textContent = value
+        }
+    }
+
+    color(value: string): void {
+        if (this._color !== value) {
+            this._color = value
+            this.elem.style.color = value
+        }
+    }
+}
+
+function overlay(canvas: HTMLCanvasElement, elem: HTMLElement): void {
+    canvas.before(elem)
+    elem.style.position = "absolute"
+    elem.style.width = canvas.width + "px"
+    elem.style.height = canvas.height + "px"
+}
 
 export function start(canvas: HTMLCanvasElement): void {
-    const ctx = canvas.getContext("2d")!
-    const game = init()
-    
-    window.addEventListener("keydown", ev => handleInput(game, ev.keyCode))
-
-    renderLoop(ctx, game)
-    updateLoop(ctx, game)
-}
-
-interface GameWrapper {
-    readonly game: Game
-    needsRender: boolean
-}
-
-function init(): GameWrapper {
-    return {
+    const wglCtx = canvas.getContext("webgl2", { desynchronized: true })!
+    const game: GameWrapper = {
         game: Core.init({
             gridSize: [GRID_WIDTH, GRID_HEIGHT],
             dir: SNAKE_INIT_DIR,
@@ -41,181 +62,187 @@ function init(): GameWrapper {
             position: [SNAKE_INIT_X, SNAKE_INIT_Y],
         }),
         needsRender: true,
+        statusContainer: new HtmlTextRef(document.createElement("div")),
+        scoreContainer: new HtmlTextRef(document.createElement("div")),
     }
-}
- 
-function reinit(gameWrapper: GameWrapper): void {
-    Core.reinit(gameWrapper.game)
-    gameWrapper.needsRender = true
+    canvas.before(game.scoreContainer.elem)
+    canvas.before(game.statusContainer.elem)
+    overlay(canvas, game.scoreContainer.elem)
+    game.scoreContainer.elem.style.fontSize = "28px"
+    game.scoreContainer.elem.style.color = "rgb(0, 235, 255)"
+    game.scoreContainer.elem.style.padding = "16px 0px 0px 16px"
+    overlay(canvas, game.statusContainer.elem)
+    game.scoreContainer.elem.style.fontSize = "28px"
+    game.statusContainer.elem.style.font = "72px Roboto"
+    game.statusContainer.elem.style.textAlign = "center"
+    game.statusContainer.elem.style.verticalAlign = "middle"
+
+    const ctx = new GridRenderingContext(
+        wglCtx,
+        [canvas.width, canvas.height],
+        game.game.gridSize,
+    )
+
+    window.addEventListener("keydown", (ev) => handleInput(game, ev))
+
+    renderLoop(ctx, game)
+
+    setInterval(() => update(game), MS_PER_TICK)
 }
 
-function renderLoop(ctx: CanvasRenderingContext2D, wrapper: GameWrapper): void {
-    const game = wrapper.game
-    const time = performance.now()
-    if (wrapper.needsRender) {
-        if (game.state === GameState.InProgress) {
-            render(ctx, game, time)
-        }
-        wrapper.needsRender = false
-    } 
-    renderNoms(ctx, game, time)
-    switch (game.state) {
-        case GameState.InProgress:
-            break
-        case GameState.InProgressAndPaused:
-            renderGamePaused(ctx, game)
-            break
-        case GameState.Lost:
-            renderGameLost(ctx, game)
-            break
-        case GameState.Won:
-            renderGameWon(ctx, game)
-            break
-    }
+function renderLoop(ctx: GridRenderingContext, wrapper: GameWrapper): void {
+    render(ctx, wrapper)
     requestAnimationFrame(() => renderLoop(ctx, wrapper))
 }
 
-function render(ctx: CanvasRenderingContext2D, game: Game, time: number): void {
-    const [dotWidth, dotHeight] = getDotSize(ctx.canvas, game)
-
-    ctx.fillStyle = "rgb(0, 0, 0)"
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-
-    const [width, height] = game.gridSize
-    for (let x = 0; x < width; x++) {
-        for (let y = 0; y < height; y++) {
-            if (game.grid[x][y] == game.snake.length) {
-                // Head
-                ctx.fillStyle = "rgb(255, 255, 255)"
-            } else if (game.grid[x][y] > 0) {
-                // Tail
-                const pct = game.grid[x][y] / game.snake.length
-                ctx.fillStyle = lerpSnakeStyle(pct)
-            } else {
-                // Empty block
-                continue
-            }
-            ctx.fillRect(x * dotWidth, y * dotHeight, dotWidth, dotHeight)
+export function render(ctx: GridRenderingContext, wrapper: GameWrapper): void {
+    const time = performance.now()
+    if (wrapper.needsRender) {
+        if (wrapper.game.state === GameState.InProgress) {
+            renderGrid(ctx, wrapper.game)
         }
+        wrapper.needsRender = false
     }
+    renderNoms(ctx, wrapper.game, time)
+    ctx.flush()
+    renderStatus(wrapper)
+    renderScore(wrapper)
 }
 
-function getDotSize(canvas: HTMLCanvasElement, game: Game): [number, number] {
-    return vec2.divide([canvas.width, canvas.height], game.gridSize)
+function renderStatus(game: GameWrapper) {
+    switch (game.game.state) {
+        case GameState.InProgress:
+            game.statusContainer.content("")
+            break
+        case GameState.InProgressAndPaused:
+            game.statusContainer.content("Paused")
+            game.statusContainer.color("rgb(240, 20, 20)")
+            break
+        case GameState.Lost:
+            game.statusContainer.content("You died")
+            game.statusContainer.color("rgb(255, 0, 0)")
+            break
+        case GameState.Won:
+            game.statusContainer.content("You won?")
+            game.statusContainer.color("rgb(255, 0, 0)")
+            break
+    }
 }
 
 function lerp(pct: number, from: number, to: number): number {
-    return from + Math.floor(pct * (to - from))
+    return from + pct * (to - from)
 }
 
-function lerpSnakeStyle(pct: number): string {
-    return "rgb(" + lerp(pct, 150, 200) + "," + lerp(pct, 150, 255) + "," + lerp(pct, 140, 100) + ")"
-}
-
-function renderNoms(ctx: CanvasRenderingContext2D, game: Game, time: number): void {
-    const [x, y] = game.noms
-    const [dotWidth, dotHeight] = getDotSize(ctx.canvas, game)
-    ctx.fillStyle = nomStyle(time)
-    ctx.fillRect(x * dotWidth, y * dotHeight, dotWidth, dotHeight)
-}
-
-function pctToByte(pct: number): number {
-    return Math.floor(pct * 255.999999)
-}
-
-function nomStyle(time: number): string {
-    const b = (time % 100) / 100
-    const g = (time % 200) / 200
-    return "rgb(255," + pctToByte(g) + "," + pctToByte(b) + ")"
-}
-
-function renderGamePaused(ctx: CanvasRenderingContext2D, game: Game): void {
-    ctx.fillStyle = "rgb(240, 20, 20)"
-    ctx.font = "40px Roboto"
-    ctx.fillText("Paused", 300, 200)
-}
-
-function renderGameLost(ctx: CanvasRenderingContext2D, game: Game): void {
-    ctx.fillStyle = "rgb(255, 0, 0)"
-    ctx.font = "40px Roboto"
-    ctx.fillText("You died", 300, 200)
-    ctx.font = "34px Roboto"
-    ctx.fillText("Score: " + Core.getScore(game), 320, 400)
-}
-
-function renderGameWon(ctx: CanvasRenderingContext2D, game: Game): void {
-    ctx.fillStyle = "rgb(255, 0, 0)"
-    ctx.font = "40px Roboto"
-    ctx.fillText("Wtf.", 300, 200)
-    ctx.font = "34px Roboto"
-    ctx.fillText("You won?", 320, 400)
-}
-
-function updateLoop(ctx: CanvasRenderingContext2D, wrapper: GameWrapper): void {
-    setInterval(() => {
-        const game = wrapper.game
-        switch (game.state) {
-            case GameState.InProgress:
-                Core.update(game)
-                wrapper.needsRender = true
-                break
-            default:
-                break
-        }
-    }, MS_PER_TICK)
-}
-
-function handleInput(wrapper: GameWrapper, keyCode: number): void {
-
-    switch (wrapper.game.state) {
-        case GameState.InProgress:
-            handleGameInput(wrapper, keyCode)
-            break
-        case GameState.InProgressAndPaused:
-            handlePausedInput(wrapper, keyCode)
-            break
-        case GameState.Lost:
-        case GameState.Won:
-            handleGameEndedInput(wrapper, keyCode)
-            break
+function lerpSnakeStyle(pct: number): Color {
+    return {
+        r: lerp(pct, 0.6, 0.8),
+        g: lerp(pct, 0.6, 1),
+        b: lerp(pct, 0.5, 0.4),
     }
 }
 
-function handleGameEndedInput(wrapper: GameWrapper, keyCode: number): void {
-    switch (keyCode) {
-        case 13: // Enter
-        case 27:// Esc
-        case 32:// Space
-            reinit(wrapper)
+function renderNoms(ctx: GridRenderingContext, game: Game, time: number): void {
+    const [x, y] = game.noms
+    ctx.setColor(x, y, nomStyle(time))
+}
+
+function nomStyle(time: number): Color {
+    const b = (time % 100) / 100
+    const g = (time % 200) / 200
+    return { r: 1, g: g, b: b }
+}
+
+function renderGrid(ctx: GridRenderingContext, game: Game): void {
+    ctx.bufferGrid((x, y) => {
+        const val = game.grid[x][y]
+        if (val > 0) {
+            if (val == game.snake.length) {
+                // Head
+                return { r: 1, g: 1, b: 1 }
+            }
+            // Tail
+            const pct = game.grid[x][y] / game.snake.length
+            return lerpSnakeStyle(pct)
+        }
+        // Empty block
+        return { r: 0, g: 0, b: 0 }
+    })
+}
+
+function renderScore(game: GameWrapper): void {
+    const score = Core.getScore(game.game)
+    const maxScore = game.game.gridSize[0] * game.game.gridSize[1]
+    const pct = score / maxScore
+    game.scoreContainer.content(score.toString())
+    const r = Math.round(lerp(pct, 0, 255))
+    const b = Math.round(lerp(pct, 255, 0))
+    game.scoreContainer.color(`rgb(${r}, 255, ${b})`)
+}
+
+export function update(wrapper: GameWrapper): void {
+    const game = wrapper.game
+    switch (game.state) {
+        case GameState.InProgress:
+            Core.update(game)
+            wrapper.needsRender = true
             break
         default:
             break
     }
 }
 
-function handleGameInput(wrapper: GameWrapper, keyCode: number): void {
+export function handleInput(wrapper: GameWrapper, event: KeyboardEvent): void {
+    const code = event.code
+    switch (wrapper.game.state) {
+        case GameState.InProgress:
+            handleGameInput(wrapper, code)
+            break
+        case GameState.InProgressAndPaused:
+            handlePausedInput(wrapper, code)
+            break
+        case GameState.Lost:
+        case GameState.Won:
+            handleGameEndedInput(wrapper, code)
+            break
+    }
+}
+
+function handleGameEndedInput(wrapper: GameWrapper, key: string): void {
+    switch (key) {
+        case "Enter": // Enter
+        case "Escape": // Esc
+        case "Space": // Space
+            wrapper.game = Core.init(wrapper.game.initArgs)
+            wrapper.needsRender = true
+            break
+        default:
+            break
+    }
+}
+
+function handleGameInput(wrapper: GameWrapper, key: string): void {
     const game = wrapper.game
-    switch(keyCode) {
-        case 13: // Enter
-        case 27:// Esc
-        case 32:// Space
+    switch (key) {
+        case "Enter": // Enter
+        case "Escape": // Esc
+        case "Space": // Space
             game.state = GameState.InProgressAndPaused
             wrapper.needsRender = true
             break
-        case 65:
-        case 37:
+        case "ArrowLeft":
+        case "KeyA":
             Core.setDirection(game, Dir.Left)
             break
-        case 87:
-        case 38:
+        case "ArrowUp":
+        case "KeyW":
             Core.setDirection(game, Dir.Up)
             break
-        case 68:
-        case 39:
+        case "ArrowRight":
+        case "KeyD":
             Core.setDirection(game, Dir.Right)
             break
-        case 83:
-        case 40:
+        case "ArrowDown":
+        case "KeyS":
             Core.setDirection(game, Dir.Down)
             break
         default:
@@ -223,16 +250,14 @@ function handleGameInput(wrapper: GameWrapper, keyCode: number): void {
     }
 }
 
-function handlePausedInput({ game }: GameWrapper, keyCode: number): void {
-    console.log("unpausing", keyCode)
-    switch (keyCode) {
-        case 13: // Enter
-        case 27:// Esc
-        case 32:// Space
+function handlePausedInput({ game }: GameWrapper, key: string): void {
+    switch (key) {
+        case "Enter": // Enter
+        case "Escape": // Esc
+        case "Space": // Space
             game.state = GameState.InProgress
             break
         default:
             break
     }
 }
-
