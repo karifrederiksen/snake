@@ -14,11 +14,18 @@ const SNAKE_INIT_X = 1
 const SNAKE_INIT_Y = 1
 ////////////
 
+export interface GameConfig {
+    getHighScore(): number | null
+    setHighScore(n: number): void
+}
+
 export interface GameWrapper {
+    config: GameConfig
     game: Game
     needsRender: boolean
-    statusContainer: HtmlTextRef
-    scoreContainer: HtmlTextRef
+    highScore: number | null
+    readonly statusContainer: HtmlTextRef
+    readonly scoreContainer: HtmlTextRef
 }
 
 export class HtmlTextRef {
@@ -52,9 +59,25 @@ function overlay(canvas: HTMLCanvasElement, elem: HTMLElement): void {
     elem.style.height = canvas.height + "px"
 }
 
-export function start(canvas: HTMLCanvasElement): void {
-    const wglCtx = canvas.getContext("webgl2", { desynchronized: true })!
+interface CancellationToken {
+    cancelled: boolean
+}
+
+export interface StartedGame {
+    stop(): void
+}
+
+export function start(
+    canvas: HTMLCanvasElement,
+    config: GameConfig,
+): StartedGame | null {
+    const wglCtx = canvas.getContext("webgl2", { desynchronized: true })
+    if (wglCtx == null) {
+        return null
+    }
+
     const game: GameWrapper = {
+        config,
         game: Core.init({
             gridSize: [GRID_WIDTH, GRID_HEIGHT],
             dir: SNAKE_INIT_DIR,
@@ -62,6 +85,7 @@ export function start(canvas: HTMLCanvasElement): void {
             position: [SNAKE_INIT_X, SNAKE_INIT_Y],
         }),
         needsRender: true,
+        highScore: config.getHighScore(),
         statusContainer: new HtmlTextRef(document.createElement("div")),
         scoreContainer: new HtmlTextRef(document.createElement("div")),
     }
@@ -83,21 +107,51 @@ export function start(canvas: HTMLCanvasElement): void {
         game.game.gridSize,
     )
 
-    window.addEventListener("keydown", (ev) => {
+    const handleKeydown = (ev: KeyboardEvent) => {
         if (handleInput(game, ev)) {
             ev.preventDefault()
             ev.stopPropagation()
         }
-    })
+    }
 
-    renderLoop(ctx, game)
+    window.addEventListener("keydown", handleKeydown)
 
-    setInterval(() => update(game), MS_PER_TICK)
+    const cancellationToken: CancellationToken = { cancelled: false }
+
+    renderLoop(cancellationToken, ctx, game)
+
+    const updateIntervalId = setInterval(() => update(game), MS_PER_TICK)
+
+    return {
+        stop() {
+            // dettach listeners
+            window.removeEventListener("keydown", handleKeydown)
+
+            // stop update and rendering loops
+            clearInterval(updateIntervalId)
+            cancellationToken.cancelled = true
+
+            // remove html
+            game.scoreContainer.elem.remove()
+            game.statusContainer.elem.remove()
+
+            // clear canvas
+            wglCtx.clearColor(0, 0, 0, 0)
+            wglCtx.clear(wglCtx.COLOR_BUFFER_BIT)
+        },
+    }
 }
 
-function renderLoop(ctx: GridRenderingContext, wrapper: GameWrapper): void {
+function renderLoop(
+    cancellationToken: CancellationToken,
+    ctx: GridRenderingContext,
+    wrapper: GameWrapper,
+): void {
+    if (cancellationToken.cancelled) {
+        return
+    }
     render(ctx, wrapper)
-    requestAnimationFrame(() => renderLoop(ctx, wrapper))
+    requestAnimationFrame(() => renderLoop(cancellationToken, ctx, wrapper))
 }
 
 export function render(ctx: GridRenderingContext, wrapper: GameWrapper): void {
@@ -178,7 +232,14 @@ function renderScore(game: GameWrapper): void {
     const score = Core.getScore(game.game)
     const maxScore = game.game.gridSize[0] * game.game.gridSize[1]
     const pct = score / maxScore
-    game.scoreContainer.content(score.toString())
+
+    if (game.highScore === null) {
+        game.scoreContainer.content(Core.getScore(game.game).toString())
+    } else {
+        game.scoreContainer.content(
+            `${Core.getScore(game.game)} | ${game.highScore}`,
+        )
+    }
     const r = Math.round(lerp(pct, 0, 255))
     const b = Math.round(lerp(pct, 255, 0))
     game.scoreContainer.color(`rgb(${r}, 255, ${b})`)
@@ -191,6 +252,14 @@ export function update(wrapper: GameWrapper): void {
             Core.update(game)
             wrapper.needsRender = true
             break
+        case GameState.Won:
+        case GameState.Lost: {
+            const score = Core.getScore(game)
+            if (score > (wrapper.highScore ?? 0)) {
+                wrapper.config.setHighScore(score)
+            }
+            break
+        }
         default:
             break
     }
@@ -219,6 +288,7 @@ function handleGameEndedInput(wrapper: GameWrapper, key: string): boolean {
         case "Space":
             wrapper.game = Core.init(wrapper.game.initArgs)
             wrapper.needsRender = true
+            wrapper.highScore = wrapper.config.getHighScore()
             return true
         default:
             return false
