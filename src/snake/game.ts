@@ -83,7 +83,12 @@ export function start(canvas: HTMLCanvasElement): void {
         game.game.gridSize,
     )
 
-    window.addEventListener("keydown", (ev) => handleInput(game, ev))
+    window.addEventListener("keydown", (ev) => {
+        if (handleInput(game, ev)) {
+            ev.preventDefault()
+            ev.stopPropagation()
+        }
+    })
 
     renderLoop(ctx, game)
 
@@ -191,73 +196,73 @@ export function update(wrapper: GameWrapper): void {
     }
 }
 
-export function handleInput(wrapper: GameWrapper, event: KeyboardEvent): void {
+export function handleInput(
+    wrapper: GameWrapper,
+    event: KeyboardEvent,
+): boolean {
     const code = event.code
     switch (wrapper.game.state) {
         case GameState.InProgress:
-            handleGameInput(wrapper, code)
-            break
+            return handleGameInput(wrapper, code)
         case GameState.InProgressAndPaused:
-            handlePausedInput(wrapper, code)
-            break
+            return handlePausedInput(wrapper, code)
         case GameState.Lost:
         case GameState.Won:
-            handleGameEndedInput(wrapper, code)
-            break
+            return handleGameEndedInput(wrapper, code)
     }
 }
 
-function handleGameEndedInput(wrapper: GameWrapper, key: string): void {
+function handleGameEndedInput(wrapper: GameWrapper, key: string): boolean {
     switch (key) {
-        case "Enter": // Enter
-        case "Escape": // Esc
-        case "Space": // Space
+        case "Enter":
+        case "Escape":
+        case "Space":
             wrapper.game = Core.init(wrapper.game.initArgs)
             wrapper.needsRender = true
-            break
+            return true
         default:
-            break
+            return false
     }
 }
 
-function handleGameInput(wrapper: GameWrapper, key: string): void {
+function handleGameInput(wrapper: GameWrapper, key: string): boolean {
     const game = wrapper.game
     switch (key) {
-        case "Enter": // Enter
-        case "Escape": // Esc
-        case "Space": // Space
+        case "Enter":
+        case "Escape":
+        case "Space":
             game.state = GameState.InProgressAndPaused
             wrapper.needsRender = true
-            break
+            return true
         case "ArrowLeft":
         case "KeyA":
             Core.setDirection(game, Dir.Left)
-            break
+            return true
         case "ArrowUp":
         case "KeyW":
             Core.setDirection(game, Dir.Up)
-            break
+            return true
         case "ArrowRight":
         case "KeyD":
             Core.setDirection(game, Dir.Right)
-            break
+            return true
         case "ArrowDown":
         case "KeyS":
             Core.setDirection(game, Dir.Down)
-            break
+            return true
         default:
-            break
+            return false
     }
 }
 
-function handlePausedInput({ game }: GameWrapper, key: string): void {
+function handlePausedInput({ game }: GameWrapper, key: string): boolean {
     switch (key) {
-        case "Enter": // Enter
-        case "Escape": // Esc
-        case "Space": // Space
+        case "Enter":
+        case "Escape":
+        case "Space":
             game.state = GameState.InProgress
-            break
+            return true
         default:
-            break
+            return false
     }
 }
