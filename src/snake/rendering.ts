@@ -1,4 +1,4 @@
-import { Vec2 } from "./vec2"
+import type { Vec2 } from "./vec2"
 import { createProgram } from "./glsl"
 
 export interface Color {

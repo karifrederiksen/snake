@@ -7,6 +7,7 @@
     "start": "parcel index.html",
     "build": "parcel build index.html"
   },
+	"type": "module",
   "author": "Kári Frederiksen",
   "license": "MIT",
   "devDependencies": {

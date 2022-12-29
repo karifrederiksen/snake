@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "module": "es2015",
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "module": "ESNext",
     "strict": true,
     "alwaysStrict": true
   }

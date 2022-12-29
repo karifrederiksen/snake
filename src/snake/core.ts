@@ -1,4 +1,4 @@
-import { Vec2 } from "./vec2"
+import type { Vec2 } from "./vec2"
 
 export const enum Dir {
     Left,
@@ -130,7 +130,7 @@ export function update(game: Game): void {
     snake.nextNextDirection = null
 }
 
-function getNextPosition({ grid, snake }: Game, direction: Dir): Vec2 {
+function getNextPosition({ snake }: Game, direction: Dir): Vec2 {
     const [x, y] = snake.position
     switch (direction) {
         case Dir.Left:

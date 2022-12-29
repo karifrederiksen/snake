@@ -1,6 +1,6 @@
-import { Game, GameState, Dir } from "./core"
+import { type Game, GameState, Dir } from "./core"
 import * as Core from "./core"
-import { GridRenderingContext, Color } from "./rendering"
+import { GridRenderingContext, type Color } from "./rendering"
 
 // CONFIG //
 const MS_PER_TICK = 100
