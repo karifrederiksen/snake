@@ -7,11 +7,7 @@
     "start": "parcel index.html",
     "build": "parcel build index.html"
   },
-	"type": "module",
+  "type": "module",
   "author": "Kári Frederiksen",
-  "license": "MIT",
-  "devDependencies": {
-    "parcel-bundler": "^1.12.5",
-    "typescript": "^4.3.5"
-  }
+  "license": "MIT"
 }
